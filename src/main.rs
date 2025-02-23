@@ -2,8 +2,7 @@ use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use dotenvy::dotenv;
 use reqwest;
 use serde::{Deserialize, Serialize};
-use serde_json;
-//use std::collections::HashMap;
+use serde_json::Value;
 use std::env;
 #[derive(Deserialize, Serialize)]
 struct GeminiResponse {
@@ -12,8 +11,7 @@ struct GeminiResponse {
 
 #[get("/gemini")]
 async fn gemini_endpoint(
-    query: web::Query<std::collections::HashMap<String, String>>,
-) -> impl Responder {
+    query: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
     let prompt = match query.get("prompt") {
         Some(p) => p,
         None => {
@@ -44,7 +42,7 @@ async fn gemini_endpoint(
                     .as_str()
                     .unwrap_or("no response")
                     .to_string();
-                HttpResponse::Ok().json(GeminiResponse { response: text })
+                HttpResponse::Ok().body(text)
             }
             Err(_) => HttpResponse::InternalServerError()
                 .json(serde_json::json!({"error":"invalid response from the gemini api"})),
