@@ -56,8 +56,8 @@ async fn gemini_endpoint(
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
 
-    let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
-    let port: u16 = port.parse().unwrap_or(3000);
+    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let port: u16 = port.parse().unwrap_or(8080);
     println!("the server is running on port {}", port);
 
     HttpServer::new(|| App::new().service(gemini_endpoint))
