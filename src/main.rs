@@ -1,9 +1,10 @@
-use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, web::{self, ServiceConfig, Data}, App, HttpResponse, Responder, HttpServer};
 use dotenvy::dotenv;
 use reqwest;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::env;
+use shuttle_actix_web::ShuttleActixWeb;
+use shuttle_runtime::SecretStore;
 #[derive(Deserialize, Serialize)]
 struct GeminiResponse {
     response: String,
@@ -11,7 +12,8 @@ struct GeminiResponse {
 
 #[get("/gemini")]
 async fn gemini_endpoint(
-    query: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
+    query: web::Query<std::collections::HashMap<String, String>>,
+api_key:web::Data<String>,) -> impl Responder {
     let prompt = match query.get("prompt") {
         Some(p) => p,
         None => {
@@ -20,15 +22,17 @@ async fn gemini_endpoint(
         }
     };
 
-    let api_key = match env::var("API_KEY") {
-        Ok(key) => key,
-        Err(_) => {
-            return HttpResponse::InternalServerError()
-                .json(serde_json::json!({ "error": "API_KEY not set" }))
-        }
-    };
 
-    let url = format!("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={}", api_key);
+
+    // let api_key = match env::var("API_KEY") {
+    //     Ok(key) => key,
+    //     Err(_) => {
+    //         return HttpResponse::InternalServerError()
+    //             .json(serde_json::json!({ "error": "API_KEY not set" }))
+    //     }
+    // };
+
+    let url = format!("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={}", api_key.get_ref());
 
     let client = reqwest::Client::new();
     let reqwest_body = serde_json::json!({
@@ -51,17 +55,14 @@ async fn gemini_endpoint(
             .json(serde_json::json!({"error":"request to gemini failed"})),
     }
 }
-
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    dotenv().ok();
-
-    let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let port: u16 = port.parse().unwrap_or(8080);
-    println!("the server is running on port {}", port);
-
-    HttpServer::new(|| App::new().service(gemini_endpoint))
-        .bind(("0.0.0.0", port))?
-        .run()
-        .await
+#[shuttle_runtime::main]
+async fn actix_web(#[shuttle_runtime::Secrets] secrets: SecretStore,
+) -> shuttle_actix_web::ShuttleActixWeb<impl FnOnce(&mut ServiceConfig) + Send + Clone + 'static> {
+    // dotenv().ok();
+    let api_key= secrets.get("API_KEY").expect("api key not found");
+    let factory = move |cfg: &mut ServiceConfig|{
+        cfg.app_data(Data::new(api_key.clone()))
+        .service(gemini_endpoint);
+    };
+    Ok(factory.into())
 }
